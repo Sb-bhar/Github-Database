@@ -1,0 +1,134 @@
+-----------Data generation:-
+
+---Member table:
+
+BEGIN
+  FOR i IN 1..1000 LOOP
+    INSERT INTO MEMBER(NAME,EMAIL) VALUES('User'||i,'user'||i||'@mail.com');
+  END LOOP;
+END;
+/
+
+----PL/SQL Data Generator for BOOK Table (1000 Rows):-
+
+DECLARE
+    v_isbn        VARCHAR2(20);
+    v_title       VARCHAR2(200);
+    v_category    VARCHAR2(50);
+    v_year        NUMBER;
+    v_publisher   VARCHAR2(100);
+
+    -- Simple lookup arrays
+    TYPE t_arr IS TABLE OF VARCHAR2(100);
+    categories  t_arr := t_arr('Fiction','Non-Fiction','Science','History','Biography',
+                               'Technology','Fantasy','Mystery','Romance','Education');
+
+    publishers  t_arr := t_arr('Penguin','HarperCollins','O''Reilly','Pearson','Random House',
+                               'Wiley','Springer','Oxford Press','Cambridge Press','McGraw-Hill');
+BEGIN
+    FOR i IN 1 .. 1000 LOOP
+
+        -- Random ISBN (978-prefix + 9-digit number)
+        v_isbn := '978-' || TRUNC(DBMS_RANDOM.VALUE(100000000, 999999999));
+
+        v_title := 'Book Title ' || i;
+        v_category := categories(TRUNC(DBMS_RANDOM.VALUE(1, categories.COUNT + 1)));
+        v_year := TRUNC(DBMS_RANDOM.VALUE(1950, 2024));
+        v_publisher := publishers(TRUNC(DBMS_RANDOM.VALUE(1, publishers.COUNT + 1)));
+
+        INSERT INTO BOOK (BOOK_ID, ISBN, TITLE, CATEGORY, PUBLISH_YEAR, PUBLISHER)
+        VALUES (i, v_isbn, v_title, v_category, v_year, v_publisher);
+
+    END LOOP;
+
+    COMMIT;
+END;
+/
+
+-----Python code for Books generation:
+
+import random
+
+categories = ["Fiction", "Non-Fiction", "Science", "History", "Biography", 
+              "Technology", "Fantasy", "Mystery", "Romance", "Education"]
+
+publishers = ["Penguin", "HarperCollins", "O'Reilly", "Pearson", "Random House",
+              "Wiley", "Springer", "Oxford Press", "Cambridge Press", "McGraw-Hill"]
+
+for i in range(1, 1001):   # BOOK_ID from 1 to 1000
+    isbn = "978-" + str(random.randint(100000000, 999999999))
+    title = "Book Title " + str(i)
+    category = random.choice(categories)
+    year = random.randint(1950, 2024)
+    publisher = random.choice(publishers)
+
+    print(f"INSERT INTO BOOK (BOOK_ID, ISBN, TITLE, CATEGORY, PUBLISH_YEAR, PUBLISHER) "
+          f"VALUES ({i}, '{isbn}', '{title}', '{category}', {year}, '{publisher}');")
+
+python generate_books.py > sample_books.sql
+
+----PL/SQL statement to insert 30 plus rows in LIB_BRANCH table:-
+
+DECLARE
+    v_branch_name  VARCHAR2(100);
+    v_location     VARCHAR2(200);
+BEGIN
+    -- 1–10 Jersey City
+    FOR i IN 1..10 LOOP
+        v_branch_name := 'Jersey City Branch ' || i;
+        v_location    := 'Jersey City, NJ';
+        
+        INSERT INTO LIB_BRANCH (BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)
+        VALUES (i, v_branch_name, v_location);
+    END LOOP;
+
+    -- 11–20 Bayonne
+    FOR i IN 11..20 LOOP
+        v_branch_name := 'Bayonne Branch ' || (i - 10);
+        v_location    := 'Bayonne, NJ';
+        
+        INSERT INTO LIB_BRANCH (BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)
+        VALUES (i, v_branch_name, v_location);
+    END LOOP;
+
+    -- 21–30 Manhattan
+    FOR i IN 21..30 LOOP
+        v_branch_name := 'Manhattan Branch ' || (i - 20);
+        v_location    := 'Manhattan, NY';
+        
+        INSERT INTO LIB_BRANCH (BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)
+        VALUES (i, v_branch_name, v_location);
+    END LOOP;
+
+    COMMIT;
+END;
+
+INSERT INTO LIB_BRANCH(BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)VALUES(1000, 'Mahatma Gandhi Gardens', 'Central Ave, Jersey City, NJ-07307');
+INSERT INTO LIB_BRANCH(BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)VALUES (1001, 'Five Corners', 'JFK Blvd, Jersey City, NJ-07306');
+INSERT INTO LIB_BRANCH(BRANCH_ID, BRANCH_NAME, BRANCH_LOCATION)VALUES(1002, 'Best Reference', '20 Main Street, 8th Ave, NY-10001');
+
+----PLSQL statement to generate BRANCH_ID alone in the BOOK table:-
+
+Combined: RANDOM updates + specific 1000/1001/1002
+
+Simple PL/SQL block version:
+
+BEGIN
+    -- Set 3 specific rows
+    UPDATE BOOK SET BRANCH_ID = 1000 WHERE BOOK_ID = 808;
+    UPDATE BOOK SET BRANCH_ID = 1001 WHERE BOOK_ID = 645;
+    UPDATE BOOK SET BRANCH_ID = 1002 WHERE BOOK_ID = 930;
+
+    -- Update 500 random rows with a random BRANCH_ID between 1–30
+    UPDATE BOOK
+    SET BRANCH_ID = TRUNC(DBMS_RANDOM.VALUE(1, 31))
+    WHERE BOOK_ID IN (
+        SELECT BOOK_ID
+        FROM BOOK
+        ORDER BY DBMS_RANDOM.VALUE
+    )
+    FETCH FIRST 500 ROWS ONLY;
+
+    COMMIT;
+END;
+/

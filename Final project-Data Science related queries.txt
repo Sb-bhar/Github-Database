@@ -1,0 +1,123 @@
+-----Data Science related queries:
+
+docs/ANALYSIS.md (Full Content)
+
+Below is the complete ANALYSIS.md file content:
+
+ANALYSIS.md — Library DS Track (Oracle Version)
+15 Analytical Queries With Performance Notes
+1. Top 10 Most Borrowed Books
+SELECT b.title, COUNT(*) AS borrow_count
+FROM loan l
+JOIN book b ON l.book_id = b.book_id
+GROUP BY b.title
+ORDER BY borrow_count DESC
+FETCH FIRST 10 ROWS ONLY;
+
+
+Performance Note:
+Index on LOAN(BOOK_ID) recommended.
+
+2. Members With Highest Overdue Rates
+SELECT m.name, fm.overdue_rate
+FROM feature_member fm
+JOIN member m ON m.member_id = fm.member_id
+ORDER BY overdue_rate DESC;
+
+3. Average Rating Per Book
+SELECT b.title, AVG(r.rating) AS avg_rating
+FROM book_rating r
+JOIN book b ON r.book_id = b.book_id
+GROUP BY b.title;
+
+4. Distribution of Ratings (Histogram Buckets)
+SELECT rating, COUNT(*) AS count
+FROM book_rating
+GROUP BY rating;
+
+5. Rolling 7-Day Checkout Volume
+SELECT snapshot_date, book_id, rolling_7d_checkouts
+FROM daily_snapshot_book
+ORDER BY snapshot_date DESC;
+
+6. Correlation Between Book Popularity and Rating
+SELECT fb.book_id, fb.popularity_score, s.mean_rating
+FROM feature_book fb
+JOIN summary_book_stats s ON fb.book_id = s.book_id;
+
+
+Compute correlation in external tool or PL/SQL.
+
+7. Genre-Level Average Checkout Counts
+SELECT b.genre, SUM(fb.total_checkouts)
+FROM feature_book fb
+JOIN book b ON fb.book_id = b.book_id
+GROUP BY b.genre;
+
+8. Member Visit Frequency Distribution
+SELECT rolling_30d_visits FROM daily_snapshot_member;
+
+9. Books With Highest ML Recommendation Scores
+SELECT m.name, b.title, r.score
+FROM book_recommendation r
+JOIN member m ON m.member_id = r.member_id
+JOIN book b ON b.book_id = r.book_id
+ORDER BY score DESC;
+
+10. Top Authors by Circulation
+SELECT a.name, COUNT(*) AS total_loans
+FROM loan l
+JOIN book_author ba ON ba.book_id = l.book_id
+JOIN author a ON a.author_id = ba.author_id
+GROUP BY a.name
+ORDER BY total_loans DESC;
+
+11. Average Loan Duration Using Window Functions
+SELECT member_id,
+       AVG(return_date - loan_date) OVER (PARTITION BY member_id) AS avg_duration
+FROM loan
+WHERE return_date IS NOT NULL;
+
+12. Time Between Checkouts per Book
+SELECT book_id,
+       loan_date,
+       LAG(loan_date) OVER (PARTITION BY book_id ORDER BY loan_date) AS prev_loan_date,
+       loan_date - LAG(loan_date) OVER (PARTITION BY book_id ORDER BY loan_date) AS delta_days
+FROM loan;
+
+13. Most Common Tags
+SELECT t.tag_name, COUNT(*) AS usage_count
+FROM book_tag_map m
+JOIN book_tag t ON m.tag_id = t.tag_id
+GROUP BY t.tag_name
+ORDER BY usage_count DESC;
+
+14. Members With Most Recommendations
+SELECT member_id, COUNT(*) AS rec_count
+FROM book_recommendation
+GROUP BY member_id
+ORDER BY rec_count DESC;
+
+15. Books With Highest Rating Variance
+SELECT b.title, STDDEV(r.rating) AS rating_stddev
+FROM book_rating r
+JOIN book b ON r.book_id = b.book_id
+GROUP BY b.title
+ORDER BY rating_stddev DESC;
+
+EXPLAIN PLAN Example (Oracle)
+Query: Most Borrowed Books
+EXPLAIN PLAN FOR
+SELECT b.title, COUNT(*) AS borrow_count
+FROM loan l
+JOIN book b ON l.book_id = b.book_id
+GROUP BY b.title
+ORDER BY borrow_count DESC;
+
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY());
+
+
+Performance Insight:
+Add index:
+
+CREATE INDEX loan_book_idx ON loan(book_id);
