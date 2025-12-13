@@ -1,123 +1,207 @@
------Data Science related queries:
+-----Top 10 borrowed books:
 
-docs/ANALYSIS.md (Full Content)
-
-Below is the complete ANALYSIS.md file content:
-
-ANALYSIS.md — Library DS Track (Oracle Version)
-15 Analytical Queries With Performance Notes
-1. Top 10 Most Borrowed Books
 SELECT b.title, COUNT(*) AS borrow_count
-FROM loan l
-JOIN book b ON l.book_id = b.book_id
+FROM BORROW b2 
+JOIN book b ON b2.BOOK_ID  = b.book_id
 GROUP BY b.title
 ORDER BY borrow_count DESC
 FETCH FIRST 10 ROWS ONLY;
 
+----Time Between Checkouts per Book
 
-Performance Note:
-Index on LOAN(BOOK_ID) recommended.
+SELECT book_id,
+       borrow_date,
+       LAG(borrow_date) OVER (PARTITION BY book_id ORDER BY borrow_date) AS prev_loan_date,
+       borrow_date - LAG(borrow_date) OVER (PARTITION BY book_id ORDER BY borrow_date) AS delta_days
+FROM borrow
+ORDER BY delta_days NULLS LAST;
 
-2. Members With Highest Overdue Rates
+-------Average borrow duration using Window functions:-
+
+SELECT member_id,
+       AVG(return_date - borrow_date) OVER (PARTITION BY member_id) AS avg_duration
+FROM borrow
+WHERE return_date IS NOT NULL;
+
+----Avg cnt of books lent by each Branch:
+
+SELECT b.BRANCH_ID, lb.BRANCH_NAME, COUNT(*)AVG_BOOK_CNT
+FROM BORROW B, LIB_BRANCH lb 
+WHERE B.BRANCH_ID =LB.BRANCH_ID 
+GROUP BY b.BRANCH_ID, LB.branch_name
+ORDER BY AVG_BOOK_CNT DESC;
+
+----Membership totals per branch:-
+---Totals only per BRANCH
+SELECT
+    b.branch_id,
+    lb.branch_name,
+    SUM(m.mem_fee) AS total_membership_fee
+FROM (
+        SELECT DISTINCT
+               member_id,
+               branch_id
+        FROM borrow
+     ) b
+JOIN member m
+    ON m.member_id = b.member_id
+JOIN lib_branch lb
+    ON lb.branch_id = b.branch_id
+GROUP BY
+    b.branch_id,
+    lb.branch_name
+ORDER BY
+    b.branch_id;
+
+--Total membership fee contributed by members who borrowed a given book from a given branch”
+--(each member counted once per branch & book)
+
+SELECT
+    b.branch_id,
+    lb.branch_name,
+    b.book_id,
+    bk.title,
+    SUM(m.mem_fee) AS total_membership_fee
+FROM (
+        SELECT DISTINCT
+               member_id,
+               book_id,
+               branch_id
+        FROM borrow
+     ) b
+JOIN member m
+    ON m.member_id = b.member_id
+JOIN book bk
+    ON bk.book_id = b.book_id
+JOIN lib_branch lb
+    ON lb.branch_id = b.branch_id
+GROUP BY
+    b.branch_id,
+    lb.branch_name,
+    b.book_id,
+    bk.title
+ORDER BY
+    b.branch_id,
+    b.book_id;
+
+---Row level membership totals:-
+
+SELECT
+    b.branch_id,
+    lb.branch_name,
+    b.book_id,
+    bk.title,
+    SUM(m.mem_fee) OVER (
+        PARTITION BY b.branch_id, b.book_id
+    ) AS total_membership_fee
+FROM (
+        SELECT DISTINCT
+               member_id,
+               book_id,
+               branch_id
+        FROM borrow
+     ) b
+JOIN member m ON m.member_id = b.member_id
+JOIN book bk ON bk.book_id = b.book_id
+JOIN lib_branch lb ON lb.branch_id = b.branch_id;
+
+----------------------------
+
+SELECT COUNT(*)
+FROM BOOK b WHERE BRANCH_ID IS NOT NULL;
+
+SELECT COUNT(*)
+FROM MEMBER;
+
+SELECT * 
+FROM BOOK
+WHERE BRANCH_ID IS NOT NULL
+ORDER BY BRANCH_ID DESC;
+
+---Left Outer join usage:-
+
+SELECT DISTINCT b.BRANCH_ID
+FROM BOOK b LEFT OUTER JOIN LIB_BRANCH lb
+ON lb.BRANCH_ID =b.BRANCH_ID
+ORDER BY b.BRANCH_ID;
+
+----Count of each membership type:-
+
+SELECT MEMBERSHIP_TYPE, COUNT(*)
+FROM MEMBER
+GROUP BY MEMBERSHIP_TYPE
+ORDER BY MEMBERSHIP_TYPE;
+
+-----Multi-table join:-Fetching Member ID, Name (from Member table) & Book Category(from Book table)-
+
+SELECT DISTINCT hr.MEMBER_ID, m.NAME, b.CATEGORY 
+FROM HOLD_REQ hr JOIN MEMBER m
+ON hr.MEMBER_ID =m.MEMBER_ID 
+JOIN BOOK b ON hr.BOOK_ID =b.BOOK_ID 
+WHERE m.MEMBERSHIP_TYPE IN('Pending', 'Disabled')
+ORDER BY hr.MEMBER_ID;
+
+--- Members With Highest Overdue Rates
 SELECT m.name, fm.overdue_rate
 FROM feature_member fm
 JOIN member m ON m.member_id = fm.member_id
 ORDER BY overdue_rate DESC;
 
-3. Average Rating Per Book
+---- Average Rating Per Book
 SELECT b.title, AVG(r.rating) AS avg_rating
 FROM book_rating r
 JOIN book b ON r.book_id = b.book_id
 GROUP BY b.title;
 
-4. Distribution of Ratings (Histogram Buckets)
-SELECT rating, COUNT(*) AS count
-FROM book_rating
-GROUP BY rating;
-
-5. Rolling 7-Day Checkout Volume
-SELECT snapshot_date, book_id, rolling_7d_checkouts
-FROM daily_snapshot_book
-ORDER BY snapshot_date DESC;
-
-6. Correlation Between Book Popularity and Rating
-SELECT fb.book_id, fb.popularity_score, s.mean_rating
-FROM feature_book fb
-JOIN summary_book_stats s ON fb.book_id = s.book_id;
-
-
-Compute correlation in external tool or PL/SQL.
-
-7. Genre-Level Average Checkout Counts
-SELECT b.genre, SUM(fb.total_checkouts)
-FROM feature_book fb
-JOIN book b ON fb.book_id = b.book_id
-GROUP BY b.genre;
-
-8. Member Visit Frequency Distribution
-SELECT rolling_30d_visits FROM daily_snapshot_member;
-
-9. Books With Highest ML Recommendation Scores
-SELECT m.name, b.title, r.score
-FROM book_recommendation r
-JOIN member m ON m.member_id = r.member_id
-JOIN book b ON b.book_id = r.book_id
-ORDER BY score DESC;
-
-10. Top Authors by Circulation
-SELECT a.name, COUNT(*) AS total_loans
-FROM loan l
-JOIN book_author ba ON ba.book_id = l.book_id
-JOIN author a ON a.author_id = ba.author_id
-GROUP BY a.name
-ORDER BY total_loans DESC;
-
-11. Average Loan Duration Using Window Functions
-SELECT member_id,
-       AVG(return_date - loan_date) OVER (PARTITION BY member_id) AS avg_duration
-FROM loan
-WHERE return_date IS NOT NULL;
-
-12. Time Between Checkouts per Book
-SELECT book_id,
-       loan_date,
-       LAG(loan_date) OVER (PARTITION BY book_id ORDER BY loan_date) AS prev_loan_date,
-       loan_date - LAG(loan_date) OVER (PARTITION BY book_id ORDER BY loan_date) AS delta_days
-FROM loan;
-
-13. Most Common Tags
 SELECT t.tag_name, COUNT(*) AS usage_count
 FROM book_tag_map m
 JOIN book_tag t ON m.tag_id = t.tag_id
 GROUP BY t.tag_name
 ORDER BY usage_count DESC;
 
-14. Members With Most Recommendations
+---Members With Most Recommendations
 SELECT member_id, COUNT(*) AS rec_count
 FROM book_recommendation
 GROUP BY member_id
 ORDER BY rec_count DESC;
 
-15. Books With Highest Rating Variance
+---Books With Highest Rating Variance
 SELECT b.title, STDDEV(r.rating) AS rating_stddev
 FROM book_rating r
 JOIN book b ON r.book_id = b.book_id
 GROUP BY b.title
 ORDER BY rating_stddev DESC;
 
-EXPLAIN PLAN Example (Oracle)
-Query: Most Borrowed Books
-EXPLAIN PLAN FOR
-SELECT b.title, COUNT(*) AS borrow_count
-FROM loan l
-JOIN book b ON l.book_id = b.book_id
-GROUP BY b.title
-ORDER BY borrow_count DESC;
+----------Unique pairing rows:
 
-SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY());
+/*Random shuffle: ORDER BY DBMS_RANDOM.VALUE randomizes both BOOK and MEMBER lists.
+Row numbering: ROWNUM assigns sequential numbers to each shuffled list.
+Join on row number: Ensures each book pairs with exactly one member, producing unique pairs.
+Limit to 50: Both lists are capped at 50 rows, so you’ll get at most 50 inserts.
+Randomized attributes: Dates vary within the last 30 days, and status is randomly chosen.
+This guarantees no duplicate member–book combinations in the batch.*/
 
+SELECT b.BOOK_ID,
+       m.MEMBER_ID,
+       SYSDATE - TRUNC(DBMS_RANDOM.VALUE(0, 30)), -- random date within last 30 days
+       CASE ROUND(DBMS_RANDOM.VALUE(1,3))
+            WHEN 1 THEN 'PENDING'
+            WHEN 2 THEN 'APPROVED'
+            ELSE 'CANCELLED'
+       END AS STATUS
+FROM (
+    SELECT BOOK_ID, ROWNUM AS rn
+    FROM (
+        SELECT BOOK_ID FROM BOOK ORDER BY DBMS_RANDOM.VALUE
+    )
+    WHERE ROWNUM <= 50
+) b
+JOIN (
+    SELECT MEMBER_ID, ROWNUM AS rn
+    FROM (
+        SELECT MEMBER_ID FROM MEMBER ORDER BY DBMS_RANDOM.VALUE
+    )
+    WHERE ROWNUM <= 50
+) m
+ON b.rn = m.rn;
 
-Performance Insight:
-Add index:
-
-CREATE INDEX loan_book_idx ON loan(book_id);
